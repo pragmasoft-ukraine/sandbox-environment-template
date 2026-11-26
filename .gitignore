@@ -1,0 +1,4 @@
+# Per-machine state: session history mount and the cloned project.
+history/*
+!history/.gitkeep
+workspace/
