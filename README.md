@@ -25,7 +25,8 @@ Docker hub account (for `sbx login`)
 ## Prepare directories
 
 `mkdir your-git-project-name; cd your-git-project-name`
-`curl.exe -L https://git.pragmasoft.dev/pragmasoft/sandbox-environment-template.git/archive/main.tar.gz | tar -xz --strip-components=1`
+
+`curl.exe -L https://github.com/pragmasoft-ukraine/sandbox-environment-template/archive/main.tar.gz | tar -xz --strip-components=1`
 
 `mkdir history`
 
