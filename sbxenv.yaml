@@ -9,16 +9,22 @@ kits:
       model: "sonnet"
       reasoningEffort: "medium"
   - sbx/claude-sessions
+  # Remove this kit if you don't use Gitea.
   - source: sbx/gitea
     args:
       host: git.pragmasoft.dev
   - sbx/playwright
   - ./kits/sandboxed
 env:
-  GIT_AUTHOR_NAME: "Dmytro Zemnytskyi"
-  GIT_AUTHOR_EMAIL: "zdv@pragmasoft.dev"
-  GIT_COMMITTER_NAME: "Dmytro Zemnytskyi"
-  GIT_COMMITTER_EMAIL: "zdv@pragmasoft.dev"
+  # Your git identity for commits made inside the sandbox.
+  GIT_AUTHOR_NAME: "Your Name"
+  GIT_AUTHOR_EMAIL: "you@example.com"
+  GIT_COMMITTER_NAME: "Your Name"
+  GIT_COMMITTER_EMAIL: "you@example.com"
+  # Sandbox ports already published by `ports:` below. The sandboxed kit tells the
+  # agent to serve on these instead of asking you to run `sbx port publish`.
+  # Keep in sync with `ports:`.
+  SBX_PUBLISHED_PORTS: "8000"
 
 ports:
   - sandbox: 8000

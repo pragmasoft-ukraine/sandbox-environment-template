@@ -10,7 +10,7 @@ description: >-
   opening a file, URL or application — rules for network approvals, timeouts,
   port publishing and handing things off to the host.
 kind: mixin
-version: "0.1.0"
+version: "0.2.0"
 licenses: [Apache-2.0]
 capabilities:
   - type: com.docker.sandbox/agent-context@1
@@ -27,7 +27,8 @@ capabilities:
         - `sbx` exists only on the user's host. Never run it inside the sandbox.
         - Put every host command in its own fenced block under the label **Run on host:**.
         - Fill in real values (sandbox name from `$SANDBOX_NAME`, ports, domains). No
-          `<placeholders>` the user has to edit.
+          `<placeholders>` the user has to edit. The only exception is approval and option
+          IDs, which only `sbx policy approval ls` on the host can show.
 
         ### 2. Announce domains in advance — unless the default policy already allows them
         The default "balanced" policy (`sbx policy init balanced`) allows HTTPS (443) to these groups.
@@ -116,7 +117,11 @@ capabilities:
         ### 7. Servers
         - Bind to `0.0.0.0` (or `::`), never to `127.0.0.1` only. Otherwise port
           publishing cannot reach the server.
-        - Once it listens, give the user the publish command with real values (default
+        - If `$SBX_PUBLISHED_PORTS` is set (comma-separated), those sandbox ports are
+          already published to the same host ports by the environment file. Serve on one
+          of them, tell the user the URL (http://localhost:<port>), and skip the publish
+          step.
+        - Otherwise, once it listens, give the user the publish command with real values (default
           protocol tcp4), the URL, and the cleanup:
           **Run on host:** `sbx port publish <value of $SANDBOX_NAME> 8080:8080`
           then open http://localhost:8080
