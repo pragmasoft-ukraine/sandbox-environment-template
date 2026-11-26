@@ -1,0 +1,36 @@
+schemaVersion: "1"
+name: your-git-project-name
+agent: claude
+workspace: ./workspace
+
+kits:
+  - source: sbx/claude
+    args:
+      model: "sonnet"
+      reasoningEffort: "medium"
+  - sbx/claude-sessions
+  - source: sbx/gitea
+    args:
+      host: git.pragmasoft.dev
+  - sbx/playwright
+  - ./kits/sandboxed
+env:
+  GIT_AUTHOR_NAME: "Dmytro Zemnytskyi"
+  GIT_AUTHOR_EMAIL: "zdv@pragmasoft.dev"
+  GIT_COMMITTER_NAME: "Dmytro Zemnytskyi"
+  GIT_COMMITTER_EMAIL: "zdv@pragmasoft.dev"
+
+ports:
+  - sandbox: 8000
+    host: 8000
+
+mounts:
+  /home/agent/claude-history: ./history
+
+mcp:
+  servers:
+    - name: context7
+      url: https://mcp.context7.com/mcp/oauth
+
+sandboxOptions:
+  skills: readonly

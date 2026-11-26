@@ -1,0 +1,129 @@
+# Docker Sandboxes kit: best-practice rules for an agent running inside a sandbox.
+# Manifest-only mixin. Its single capability adds agent context; it installs nothing.
+# Mixin context is progressive disclosure: CLAUDE.md gets a pointer, the rules live in
+# ~/.claude/kits-agent-context/sandboxed.md. The description is therefore written as a
+# read trigger.
+schemaVersion: "3"
+displayName: Sandboxed
+description: >-
+  READ BEFORE running any command that touches the network, starting a server, or
+  opening a file, URL or application — rules for network approvals, timeouts,
+  port publishing and handing things off to the host.
+kind: mixin
+version: "0.1.0"
+licenses: [Apache-2.0]
+capabilities:
+  - type: com.docker.sandbox/agent-context@1
+    optional: true
+    config: &agent-context
+      content: |
+        ## Sandboxed: working inside a Docker sandbox
+
+        These rules decide *when and how* to act. The reference material (403 body
+        shapes, `sbx policy …`, `sbx port …`) is in the "Network access" section of
+        CLAUDE.md.
+
+        ### 1. Host commands
+        - `sbx` exists only on the user's host. Never run it inside the sandbox.
+        - Put every host command in its own fenced block under the label **Run on host:**.
+        - Fill in real values (sandbox name from `$SANDBOX_NAME`, ports, domains). No
+          `<placeholders>` the user has to edit.
+
+        ### 2. Announce domains in advance — unless the default policy already allows them
+        The default "balanced" policy (`sbx policy init balanced`) allows HTTPS (443) to these groups.
+        For these, just run the command; if it still gets a 403, the user changed the policy, so go to rule 3.
+        - **AI services:** Anthropic/Claude, OpenAI/ChatGPT, Gemini, Cursor, Perplexity.
+        - **Package managers:** npm/yarn/bun, PyPI (+ files.pythonhosted.org), astral.sh, crates/rustup,
+          Go proxy, Maven/Gradle, NuGet/dotnet, RubyGems, Packagist, pub.dev, Hex, CPAN, nodejs.org, ziglang.org.
+        - **Code and containers:** GitHub (incl. `*.githubusercontent.com`), GitLab, Bitbucket,
+          Docker Hub, ghcr.io, gcr.io, quay.io, mcr.microsoft.com, public.ecr.aws, registry.k8s.io, dhi.io, sourceforge.net.
+        - **Cloud and CDNs:** `*.amazonaws.com`, `*.googleapis.com`, `*.blob.core.windows.net`, Azure/MS login,
+          Vercel, Supabase, HashiCorp, jsdelivr, unpkg, Playwright CDN, dl.google.com.
+        - **OS packages:** Debian, Ubuntu, Alpine, Arch, Fedora, CentOS, apt.llvm.org, packagecloud.io.
+        - **Certificate checks (CRL/OCSP):** Let's Encrypt, DigiCert, Sectigo, GlobalSign and similar.
+
+        For any other domain you can predict (company sites, arbitrary websites, APIs, e.g. pragmasoft.dev,
+        httpbin.org, cdnjs.cloudflare.com, raw IPs, non-443 ports):
+        - List every domain it will reach, including redirects and CDNs.
+        - Give the user one command for all of them: `sbx policy allow network a.com,b.com`.
+        - Stop and wait for the user to confirm. Do not run it to "see if it works".
+        - Never suggest `"**"` unless the user asks.
+
+        ### 3. A 403 during a round: collect, then ask once
+        When a Bash call fails with HTTP 403, read the response body and classify it:
+        - `Approval required for <host>`: pending approval. Collect the host.
+        - `Blocked by network policy … no matching allow rule`: default deny. Collect
+          the host.
+        - `Blocked by local rule for <host>`: a deny rule wins over allows. Report it.
+          The user must remove it (`sbx policy ls`, `sbx policy rm network …`).
+        - `Blocked by org policy`: there is nothing to approve. Tell the user to contact
+          IT and do not ask again.
+
+        Finish the round's remaining independent calls first. Then send **one**
+        consolidated request:
+        - pending approvals: `sbx policy approval ls`, then
+          `sbx policy approval respond <id> --option <option>`
+        - default-deny hosts: a single `sbx policy allow network host1,host2`
+
+        After the user confirms, rerun the failed commands.
+
+        Tools often hide the 403 (pip "ProxyError", npm "E403", git "The requested URL
+        returned error: 403"). If the body isn't shown, reproduce with
+        `curl -sS --max-time 10 https://<host>/` to read it.
+
+        ### 4. Every script must be safe to retry
+        Assume any Bash command that touches the network will run again after an
+        approval:
+        - Make it idempotent: check before you create, use `mkdir -p`, `ln -sf`,
+          `curl -C -` / `-o` to a temp file and then `mv`, and no `--force-reinstall`.
+        - Never delete or overwrite good state before the fetch that replaces it has
+          succeeded.
+        - Keep network steps separate from local steps, so a retry repeats only the part
+          that failed.
+        - After an approval, rerun the same command unchanged.
+
+        ### 5. Short timeouts
+        A blocked request returns 403 at once, so a long wait means something else is
+        wrong. Set explicit limits:
+        - `curl --connect-timeout 5 --max-time 60`
+        - `wget -T 10 -t 2`
+        - `pip --timeout 15 --retries 1`
+        - `npm --fetch-timeout=15000 --fetch-retries=1`
+        - `git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=15`
+        - `uv` with `UV_HTTP_TIMEOUT=15`
+
+        Wrap anything that may hang in `timeout 120 …`, or run it in the background.
+
+        If connections succeed but are very slow, point the user to the
+        `DOCKER_SANDBOXES_IP_STACK` note in CLAUDE.md.
+
+        ### 6. Nothing opens on the host from here
+        Never call `xdg-open`, `open`, `start`, `sensible-browser` or a GUI app. Instead,
+        tell the user exactly what to open on their host.
+
+        Files:
+        - Check the workspace mode first: `/run/sandbox/source` exists → clone mode.
+        - Direct mode: give the **host** path. The workspace is the host folder, e.g.
+          `/c/Users/me/proj/out.html` → `C:\Users\me\proj\out.html` on Windows.
+        - Clone mode: the file is not on the host yet. The user must
+          `git fetch sandbox-$SANDBOX_NAME` (after you commit) or you must push it.
+
+        URLs and checking your own work:
+        - URLs: print them as clickable links.
+        - To check visual output yourself, take a headless screenshot (Playwright, if
+          installed) and do not ask the user to look.
+
+        ### 7. Servers
+        - Bind to `0.0.0.0` (or `::`), never to `127.0.0.1` only. Otherwise port
+          publishing cannot reach the server.
+        - Once it listens, give the user the publish command with real values (default
+          protocol tcp4), the URL, and the cleanup:
+          **Run on host:** `sbx port publish <value of $SANDBOX_NAME> 8080:8080`
+          then open http://localhost:8080
+          and when done: `sbx port unpublish <value of $SANDBOX_NAME> 8080:8080`
+        - Check `sbx port ls <value of $SANDBOX_NAME>` before you publish again.
+        - To reach a service on the host from the sandbox, use `host.docker.internal`,
+          not `localhost`.
+  - type: com.docker.sandbox/agent-context@2
+    optional: true
+    config: *agent-context
